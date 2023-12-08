@@ -19,7 +19,7 @@ from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 def createCarte(request):
     if request.user.account_type == AccountTypeEnum.SIMPLE.value:
         return Response({'message': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
-    if not abonnementIsActiveAndValidate(request.user.id):
+    if not abonnementIsActiveAndValidate(request.user.id, 'CARTE'):
         return Response({'message': 'Abonnement not active or not validate'}, status=status.HTTP_403_FORBIDDEN)
 
     dataSerializer = CartesSerializerAdd(data=request.data)

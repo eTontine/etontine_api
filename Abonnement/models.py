@@ -4,10 +4,8 @@ from BaseApi.AppEnum import *
 class Abonnement(models.Model):
     name = models.CharField(max_length=255)
     sale_price = models.DecimalField(max_digits=60, decimal_places=2)
-    interval_user_min = models.IntegerField()
-    interval_user_max = models.IntegerField()
-    interval_groupe_min = models.IntegerField()
-    interval_groupe_max = models.IntegerField()
+    can_create_groupe = models.BooleanField()
+    can_create_carte = models.BooleanField()
     duration_days = models.IntegerField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

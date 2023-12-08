@@ -19,7 +19,8 @@ from Transaction.Cron.Cron import *
 import pytz
 from Transaction.Views.views import *
 from django.db.models import Sum
-
+from Transaction.serializers import TransactionSerializer
+from Account.models import Users
 
 @api_view(['GET'])
 @authentication_classes([JWTAuthentication])
@@ -35,7 +36,7 @@ def getCartePaymentDetails(request):
     espected_number = associateCarte.carte.number_day
     
     if not object_id:
-        return Response({'message': 'Vous devez fournir l\'id de votre associate groupe'}, status=400)
+        return Response({'message': 'Vous devez fournir l\'id de votre associate carte'}, status=400)
     if not number_payment or number_payment < 1:
         return Response({'message': 'Vous devez fournir le nombre de paiement et vérifier qu\'il est supérieur à 0'}, status=400)
     if associateCarte.invitation_status != InvitationStatusEnum.ACCEPTED.value:
@@ -86,7 +87,7 @@ def addCarteAssociateTransaction(request):
     sender_phone = data['send_phone']
 
     if not object_id:
-        return Response({'message': 'Vous devez fournir l\'id de votre associate groupe'}, status=400)
+        return Response({'message': 'Vous devez fournir l\'id de votre associate carte'}, status=400)
     if not number_payment or number_payment < 1:
         return Response({'message': 'Vous devez fournir le nombre de paiement et vérifier qu\'il est supérieur à 0'}, status=400)
     if associateCarte.invitation_status != InvitationStatusEnum.ACCEPTED.value:
@@ -121,5 +122,154 @@ def addCarteAssociateTransaction(request):
         status=StatusTransactionEnum.PENDING.value,
         id_association=associateCarte,
     )
-    sendCarteParticipationTransaction(transaction.id, sender_phone)
+    sendCarteTransaction(transaction.id, sender_phone)
     return Response({'message': 'Paiment carte envoyé avec succès et en attente de confirmation'})
+
+@api_view(['POST'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+@transaction.atomic
+def makeCarteCollectRequest(request):
+    data = request.data
+    object_id = data['object_id']
+    content_type = ContentType.objects.get_for_model(Associate_carte)
+    associateCarte = get_object_or_404(Associate_carte, id=object_id)
+    receiver = associateCarte.user
+    receiver_phone = data['receiver_phone']
+    send = associateCarte.carte.tontinier
+    sender_phone = associateCarte.carte.tontinier.phone
+
+    totalPay = Transaction.objects.filter(type_de_tontine=TontineTypeEnum.CARTE.value, object=associateCarte.id, status=StatusTransactionEnum.SUCCESSFUL.value).aggregate(Sum('number_payment'))['number_payment__sum']
+    if totalPay is None:
+        totalPay = 0
+    
+    if totalPay == 0:
+        return Response({'message': 'Vous n\'avez pas encore payé'}, status=400)
+
+    amount = float(associateCarte.carte.amount) * float(totalPay) - float(associateCarte.carte.gain)
+
+    if not object_id:
+        return Response({'message': 'Vous devez fournir l\'id de votre carte'}, status=400)
+    if not receiver_phone:
+        return Response({'message': 'Vous devez fournir le numéro de téléphone du destinataire'}, status=400)
+    if associateCarte.transaction_status != StatusTransactionEnum.SUCCESSFUL.value:
+        return Response({'message': 'La carte n\'est pas encore payée'}, status=400)
+    if associateCarte.invitation_status != InvitationStatusEnum.ACCEPTED.value:
+        return Response({'message': 'L\'invitation n\'est pas acceptée'}, status=400)
+    
+    _transaction = Transaction.objects.filter(object=associateCarte.id, type_transaction=TypeTransactionEnum.COLLECTED.value).first()
+
+    if _transaction is not None:
+        if _transaction.status == StatusTransactionEnum.SUCCESSFUL.value:
+            return Response({'message': 'Vous avez déjà collecté la carte'}, status=400)
+        return Response({'message': 'Vous avez déjà effectué une demande de collecte'}, status=400)
+    
+    transaction = Transaction.objects.create(
+        amount=amount,
+        receiver=receiver,
+        receiver_phone=receiver_phone,
+        send=send,
+        sender_phone=sender_phone,
+        payment_date=datetime.now(),
+        content_type=content_type,
+        object=object_id,
+        type_de_tontine=TontineTypeEnum.CARTE.value,
+        type_transaction=TypeTransactionEnum.COLLECTED.value,
+        status=StatusTransactionEnum.PENDING.value,
+        id_association=associateCarte,
+    )
+    associateCarte.status = StatusTontinierEnum.REQUEST_SENT.value
+    associateCarte.save()
+
+    return Response({'message': 'Demande de collecte envoyé avec succès et en attente de validation'})
+
+@api_view(['POST'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+@transaction.atomic
+def sendCarteCollectTransaction(request):
+    data = request.data
+    object_id = data['object_id']
+    content_type = ContentType.objects.get_for_model(Associate_carte)
+    associateCarte = get_object_or_404(Associate_carte, id=object_id)
+    receiver = associateCarte.user
+    receiver_phone = associateCarte.user.phone
+    send = associateCarte.carte.tontinier
+    sender_phone = data['sender_phone']
+
+    totalPay = Transaction.objects.filter(type_de_tontine=TontineTypeEnum.CARTE.value, object=associateCarte.id, status=StatusTransactionEnum.SUCCESSFUL.value).aggregate(Sum('number_payment'))['number_payment__sum']
+    if totalPay is None:
+        totalPay = 0
+    
+    if totalPay == 0:
+        return Response({'message': 'Aucun payment effectué sur la carte'}, status=400)
+    amount = float(associateCarte.carte.amount) * float(totalPay) - float(associateCarte.carte.gain)
+
+    if not object_id:
+        return Response({'message': 'Vous devez fournir l\'id de votre carte'}, status=400)
+    if not sender_phone:
+        return Response({'message': 'Vous devez fournir votre numéro de téléphone '}, status=400)
+    if associateCarte.transaction_status != StatusTransactionEnum.SUCCESSFUL.value:
+        return Response({'message': 'La carte n\'est pas encore payée'}, status=400)
+    if associateCarte.invitation_status != InvitationStatusEnum.ACCEPTED.value:
+        return Response({'message': 'L\'invitation n\'est pas acceptée'}, status=400)
+    
+    _transaction = Transaction.objects.filter(object=associateCarte.id, type_transaction=TypeTransactionEnum.COLLECTED.value).first()
+
+    if _transaction is not None:
+        if _transaction.status == StatusTransactionEnum.SUCCESSFUL.value:
+            return Response({'message': 'La carte a déjà été collecté'}, status=400)
+        _transaction.delete()
+    
+    transaction = Transaction.objects.create(
+        amount=amount,
+        receiver=receiver,
+        receiver_phone=receiver_phone,
+        send=send,
+        sender_phone=sender_phone,
+        payment_date=datetime.now(),
+        content_type=content_type,
+        object=object_id,
+        type_de_tontine=TontineTypeEnum.CARTE.value,
+        type_transaction=TypeTransactionEnum.COLLECTED.value,
+        status=StatusTransactionEnum.PENDING.value,
+        id_association=associateCarte,
+    )
+    associateCarte.status = StatusTontinierEnum.REQUEST_IN_PROGRESS.value
+    associateCarte.save()
+    sendCarteTransaction(transaction.id, sender_phone)
+    return Response({'message': 'Demande de collecte envoyé avec succès et en attente de validation'})
+
+@api_view(['PUT'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+@transaction.atomic
+def validateCarteCollectRequest(request, transaction_id):
+    data = request.data
+    sender_phone = data['sender_phone']
+    transaction = get_object_or_404(Transaction, id=transaction_id)
+    if transaction.status == StatusTransactionEnum.SUCCESSFUL.value:
+        return Response({'message': 'Vous avez déjà validé la demande de collecte'}, status=400)
+    if transaction.type_transaction != TypeTransactionEnum.COLLECTED.value:
+        return Response({'message': 'Vous ne pouvez valider que des demandes de collecte'}, status=400)
+    if transaction.status!= StatusTransactionEnum.PENDING.value:
+        return Response({'message': 'Vous ne pouvez valider que des demandes en attente'}, status=400)
+    if sender_phone is None:
+        return Response({'message': 'Vous ne pouvez fournir votre numéro de transaction'}, status=400)
+
+    transaction.sender_phone = sender_phone
+    transaction.save()
+    sendCarteTransaction(transaction.id, sender_phone)
+    associateCarte = transaction.id_association
+    associateCarte.status = StatusTontinierEnum.REQUEST_IN_PROGRESS.value
+    associateCarte.save()
+    return Response({'message': 'Demande de collecte validé avec succès'})
+
+@api_view(['GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def getCarteCollectRequest(request, tontinier_id):
+    tontinier = get_object_or_404(Users, id=tontinier_id)
+    transactions = Transaction.objects.filter(type_transaction=TypeTransactionEnum.COLLECTED.value, status=StatusTransactionEnum.PENDING.value, type_de_tontine=TontineTypeEnum.CARTE.value, send=tontinier)
+    serializer = TransactionSerializer(transactions, many=True)
+    return Response(serializer.data)

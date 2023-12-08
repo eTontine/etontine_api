@@ -97,7 +97,7 @@ def getAssociateCartes(request):
     if search:
         filters &= Q(
             Q(carte__name__icontains=search) |
-            Q(tontinier__name__icontains=search) |
+            Q(carte__tontinier__name__icontains=search) |
             Q(reseau_transaction_id__icontains=search) |
             Q(referenceId__icontains=search)
         )

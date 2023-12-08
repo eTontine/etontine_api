@@ -12,7 +12,7 @@ class StatusAbonnementEnum(Enum):
 
 class StatusGroupeEnum(Enum):
     INSCRIPTION = 'INSCRIPTION'
-    IN_PROGESS = 'IN_PROGESS'
+    IN_PROGRESS = 'IN_PROGRESS'
     COMPLETED = 'COMPLETED'
     CANCELLED = 'CANCELLED'
 
@@ -25,6 +25,8 @@ class InvitationStatusEnum(Enum):
 
 class StatusTontinierEnum(Enum):
     COLLECTED = 'COLLECTED'
+    REQUEST_SENT = 'REQUEST_SENT'
+    REQUEST_IN_PROGRESS = 'REQUEST_IN_PROGRESS'
     NOT_COLLECTED = 'NOT_COLLECTED'
 
 class TontineTypeEnum(Enum):
@@ -55,6 +57,10 @@ class StatusTransactionEnum(Enum):
     REFUNDED = 'REFUNDED'
     UNKNOWN = 'UNKNOWN'
 
+class TypeTransactionEnum(Enum):
+    CONTRIBUTION = 'CONTRIBUTION'
+    COLLECTED = 'COLLECTED'
+
 class TypeRuleEnum(Enum):
     CARTES = 'CARTES'
     GROUPES = 'GROUPES'
@@ -64,57 +70,25 @@ class AbonnementEnum(Enum):
     SIMPLE = {
         'name': 'Simple',
         'sale_price': 1000,
-        'interval_user_min': 1,
-        'interval_user_max': 5,
-        'interval_groupe_min': 0,
-        'interval_groupe_max': 0,
-        'duration_days': 365
-    }
-    SIMPLE_PREMIUM = {
-        'name': 'Simple Premium',
-        'sale_price': 1500,
-        'interval_user_min': 1,
-        'interval_user_max': -1,
-        'interval_groupe_min': 0,
-        'interval_groupe_max': 0,
+        'can_create_groupe': False,
+        'can_create_carte': True,
         'duration_days': 365
     }
     GROUPE = {
         'name': 'Groupe',
         'sale_price': 1500,
-        'interval_user_min': 0,
-        'interval_user_max': 0,
-        'interval_groupe_min': 1,
-        'interval_groupe_max': 5,
+        'can_create_groupe': True,
+        'can_create_carte': False,
         'duration_days': 365
     }
-    GROUPE_PREMIUM = {
-        'name': 'Groupe Premium',
+    PREMIUM = {
+        'name': 'Premium',
         'sale_price': 2000,
-        'interval_user_min': 0,
-        'interval_user_max': 0,
-        'interval_groupe_min': 1,
-        'interval_groupe_max': -1,
+        'can_create_groupe': True,
+        'can_create_carte': True,
         'duration_days': 365
     }
-    SIMPLE_GROUPE = {
-        'name': 'Simple Groupe',
-        'sale_price': 3500,
-        'interval_user_min': 1,
-        'interval_user_max': 10,
-        'interval_groupe_min': 1,
-        'interval_groupe_max': 10,
-        'duration_days': 365
-    }
-    SIMPLE_GROUPE_PREMIUM = {
-        'name': 'Simple Groupe Premium',
-        'sale_price': 5000,
-        'interval_user_min': 1,
-        'interval_user_max': -1,
-        'interval_groupe_min': 1,
-        'interval_groupe_max': -1,
-        'duration_days': 365
-    }
+
 class CountryEnum(Enum):
     BENIN = {
         'name': 'Benin',

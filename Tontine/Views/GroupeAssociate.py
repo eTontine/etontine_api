@@ -8,13 +8,14 @@ from django.shortcuts import get_object_or_404
 from BaseApi.AppEnum import *
 from Abonnement.Views.Function import * 
 from Tontine.models import Groupes, Groupe_associate
-from Tontine.serializers import Groupe_associateSerializer, Groupe_associateSerializerAdd
+from Tontine.serializers import Groupe_associateSerializer, Groupe_associateSerializerAdd, GroupesSerializer
 from django.db.models import Q
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from Tontine.models import PaymentPeriod
 from Transaction.Views.views import getGroupePenality
 from Transaction.models import Transaction
 from Transaction.serializers import TransactionSerializer
+from Account.models import Users
 
 @api_view(['POST'])
 @authentication_classes([JWTAuthentication])
@@ -23,27 +24,30 @@ from Transaction.serializers import TransactionSerializer
 def addUserInGroupe(request):
     data = request.data
     groupeId = data.get('groupe')
-    user_phone = data.get('user_phone')
+    user_phones = data.get('user_phones')
 
-    if groupeId is None or user_phone is None:
+    if groupeId is None or user_phones is None or len(user_phones) == 0:
         return Response({'error': "Veuillez remplir tous les champs obligatoires"}, status=status.HTTP_400_BAD_REQUEST)
     
     groupe = get_object_or_404(Groupes, id=groupeId)
-    user = get_object_or_404(Users, phone=user_phone)
-
     if groupe.status != StatusGroupeEnum.INSCRIPTION.value:
         return Response({'error': "Le groupe est fermé ou la phase d'inscription est terminée"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    dataSerializers = []
+    for user_phone in user_phones:
+        user = Users.objects.filter(phone=user_phone).first()
+        if user:
+            data['groupe'] = groupe.id
+            data['user'] = user.id
+            data['invitation_status'] = InvitationStatusEnum.PENDING.value
 
-    data['groupe'] = groupe.id
-    data['user'] = user.id
-    data['invitation_status'] = InvitationStatusEnum.PENDING.value
-
-
-    dataSerializer = Groupe_associateSerializerAdd(data=data)
-    if dataSerializer.is_valid():
-        dataSerializer.save()
-        return Response(dataSerializer.data, status=status.HTTP_201_CREATED)
-    return Response(dataSerializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            dataSerializer = Groupe_associateSerializerAdd(data=data)
+            if dataSerializer.is_valid():
+                dataSerializer.save()
+                dataSerializers.append(dataSerializer.data)
+        else:
+            dataSerializers.append({'user': user_phone, 'error': "L'utilisateur n'existe pas"})
+    return Response(dataSerializers, status=status.HTTP_201_CREATED)
 
 @api_view(['PUT'])
 @authentication_classes([JWTAuthentication])
@@ -98,8 +102,10 @@ def getGroupeAssociate(request, groupe_associate_id):
                 'payment_date': period.payment_date,
                 'status': period.status,
             })
+
+    filters = Q(object=groupeAssociate.id)
     
-    transactionRequest = Transaction.objects.filter(object=groupeAssociate.id)
+    transactionRequest = Transaction.objects.filter(filters)
     if transactionRequest.exists():
         for transaction in transactionRequest:
             transactionSerializer = TransactionSerializer(transaction)
@@ -170,3 +176,45 @@ def getAssociateGroupes(request):
     }
     return Response(response_data, status=200)
     return Response(serializer.data, status=200)
+
+@api_view(['GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def getGroupeAssociateToUser(request, user_id):
+    user = get_object_or_404(Users, id=user_id)
+    search = request.query_params.get('search')
+    page = request.query_params.get('page', 1)
+    page_size = request.query_params.get('limit')
+    groupes = []
+    filters = Q(user=user)
+    if search:
+        filters &= (
+            Q(groupe__name__icontains=search) 
+        )
+    groupeAssociates = Groupe_associate.objects.filter(filters)
+
+    if groupeAssociates.exists():
+        for groupeAssociate in groupeAssociates:
+            groupe = groupeAssociate.groupe
+            if groupe not in groupes:
+                groupes.append(groupe)
+
+    if page_size is None or page_size == "":
+        serializer = GroupesSerializer(groupes, many=True)
+        return Response({'data': serializer.data}, status=200)
+
+    paginator = Paginator(groupes, page_size)
+    try:
+        paginated_data = paginator.page(page)
+    except PageNotAnInteger:
+        paginated_data = paginator.page(1)
+    except EmptyPage:
+        paginated_data = paginator.page(paginator.num_pages)
+    
+    serializer = GroupesSerializer(paginated_data, many=True)
+    response_data = {
+        'total_pages': paginator.num_pages,
+        'current_page': paginated_data.number,
+        'total_items': paginator.count,
+        'data': serializer.data
+    }

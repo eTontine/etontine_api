@@ -80,8 +80,12 @@ def checkParticipationTontineTransactionValidation():
                         tontineTransaction.status = tontineTransactionData['status']
                         tontineTransaction.reseau_transaction_id = tontineTransactionData['financialTransactionId']
                         tontineTransaction.save()
-                        if tontineTransaction.type_de_tontine == TontineTypeEnum.GROUPE.value and tontineTransactionData['status'] == StatusTransactionEnum.SUCCESSFUL.value:
+                        if tontineTransaction.type_de_tontine == TontineTypeEnum.GROUPE.value and tontineTransactionData['status'] == StatusTransactionEnum.SUCCESSFUL.value and tontineTransaction.type_transaction == TypeTransactionEnum.CONTRIBUTION.value:
                             updatePaymentPeriod(tontineTransaction.object, tontineTransaction.verification_payment_date, tontineTransaction.payment_date, tontineTransaction.number_payment)
+                        if tontineTransaction.type_transaction == TypeTransactionEnum.COLLECTED.value and tontineTransactionData['status'] == StatusTransactionEnum.SUCCESSFUL.value:
+                            groupeOrCarteAssociate = tontineTransaction.id_association
+                            groupeOrCarteAssociate.status = StatusTontinierEnum.COLLECTED.value
+                            groupeOrCarteAssociate.save()
         return True
 
 def updatePaymentPeriod(object_id, verification_payment_date, current_date, number_payment):

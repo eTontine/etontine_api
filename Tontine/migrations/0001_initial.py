@@ -44,7 +44,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('name', models.CharField(max_length=255)),
-                ('status', models.CharField(choices=[('INSCRIPTION', 'INSCRIPTION'), ('IN_PROGESS', 'IN_PROGESS'), ('COMPLETED', 'COMPLETED'), ('CANCELLED', 'CANCELLED')], default='INSCRIPTION', max_length=20)),
+                ('status', models.CharField(choices=[('INSCRIPTION', 'INSCRIPTION'), ('IN_PROGRESS', 'IN_PROGRESS'), ('COMPLETED', 'COMPLETED'), ('CANCELLED', 'CANCELLED')], default='INSCRIPTION', max_length=20)),
                 ('start_date', models.DateTimeField(null=True)),
                 ('amount', models.DecimalField(decimal_places=2, max_digits=10)),
                 ('gain', models.DecimalField(decimal_places=2, max_digits=10)),

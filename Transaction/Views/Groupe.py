@@ -19,6 +19,8 @@ from Transaction.Cron.Cron import *
 import pytz
 from Transaction.Views.views import *
 from TontineRule.models import Rule_values
+from Tontine.serializers import Groupe_associateSerializer
+from Account.models import Users
 
 def getGroupePenality(groupe_id):
     pernality_value = Rule_values.objects.filter(carte_or_groupe_id=groupe_id, type=TypeRuleEnum.GROUPES.value, rule__key='PENALITY_PAYMENT').first()
@@ -47,7 +49,7 @@ def getPaymentDetails(request):
         return Response({'message': 'L\'invitation n\'est pas acceptée'}, status=400)
     if sender_phone is None:
         return Response({'message': 'Vous devez fournir le numéro de téléphone de l\'utilisateur'}, status=400)
-    if associateGroupe.groupe.status != StatusGroupeEnum.IN_PROGESS.value:
+    if associateGroupe.groupe.status != StatusGroupeEnum.IN_PROGRESS.value:
         return Response({'message': 'Le groupe n\'est pas encore lancé'}, status=400)
     if paymentDate is None:
         return Response({'message': 'Vous devez fournir la date de paiement'}, status=400)
@@ -104,7 +106,7 @@ def addGroupeAssociateTransaction(request):
         return Response({'message': 'L\'invitation n\'est pas acceptée'}, status=400)
     if sender_phone is None:
         return Response({'message': 'Vous devez fournir le numéro de téléphone de l\'utilisateur'}, status=400)
-    if associateGroupe.groupe.status != StatusGroupeEnum.IN_PROGESS.value:
+    if associateGroupe.groupe.status != StatusGroupeEnum.IN_PROGRESS.value:
         return Response({'message': 'Le groupe n\'est pas encore lancé'}, status=400)
     if paymentDate is None:
         return Response({'message': 'Vous devez fournir la date de paiement'}, status=400)
@@ -140,5 +142,63 @@ def addGroupeAssociateTransaction(request):
         status=StatusTransactionEnum.PENDING.value,
         id_association=associateGroupe,
     )
-    sendGroupeTransactionParticipation(transaction.id, sender_phone)
+    sendGroupeTransaction(transaction.id, sender_phone)
     return Response({'message': 'Participation tontine envoyée avec succès et encore en attente de paiement'})
+
+@api_view(['POST'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+@transaction.atomic
+def sendGroupeCollectTransaction(request):
+    data = request.data
+    object_id = data['object_id']
+    content_type = ContentType.objects.get_for_model(Groupe_associate)
+    groupeAssoociate = get_object_or_404(Groupe_associate, id=object_id)
+    numberNumber = Groupe_associate.objects.filter(groupe=groupeAssoociate.groupe, invitation_status=InvitationStatusEnum.ACCEPTED.value).count()
+    amount = float(groupeAssoociate.groupe.amount) * float(numberNumber) - float(groupeAssoociate.groupe.gain) 
+    receiver = groupeAssoociate.user
+    receiver_phone = groupeAssoociate.user.phone
+    send = groupeAssoociate.groupe.tontinier
+    sender_phone = data['sender_phone']
+
+    if not object_id:
+        return Response({'message': 'Vous devez fournir l\'id de votre groupe associer'}, status=400)
+    if not sender_phone:
+        return Response({'message': 'Vous devez fournir votre numéro de téléphone '}, status=400)
+    if groupeAssoociate.invitation_status != InvitationStatusEnum.ACCEPTED.value:
+        return Response({'message': 'L\'invitation n\'est pas acceptée'}, status=400)
+    
+    _transaction = Transaction.objects.filter(object=groupeAssoociate.id, type_transaction=TypeTransactionEnum.COLLECTED.value).first()
+
+    if _transaction is not None:
+        if _transaction.status == StatusTransactionEnum.SUCCESSFUL.value:
+            return Response({'message': 'Collecte déjà effectuée'}, status=400)
+        _transaction.delete()
+    
+    transaction = Transaction.objects.create(
+        amount=amount,
+        receiver=receiver,
+        receiver_phone=receiver_phone,
+        send=send,
+        sender_phone=sender_phone,
+        payment_date=datetime.now(),
+        content_type=content_type,
+        object=object_id,
+        type_de_tontine=TontineTypeEnum.GROUPE.value,
+        type_transaction=TypeTransactionEnum.COLLECTED.value,
+        status=StatusTransactionEnum.PENDING.value,
+        id_association=groupeAssoociate,
+    )
+    groupeAssoociate.status = StatusTontinierEnum.REQUEST_IN_PROGRESS.value
+    groupeAssoociate.save()
+    sendGroupeTransaction(transaction.id, sender_phone)
+    return Response({'message': 'Demande de collecte envoyé avec succès et en attente de validation'})
+
+@api_view(['GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def getGroupeCollectNoMake(request, tontinier_id):
+    tontinier = get_object_or_404(Users, id=tontinier_id)
+    filters = Q(status=StatusTontinierEnum.NOT_COLLECTED.value) & Q(groupe__tontinier=tontinier) & Q(groupe__status=StatusGroupeEnum.IN_PROGRESS.value) & Q(date_collect__lte=datetime.now())
+    serializers = Groupe_associateSerializer(Groupe_associate.objects.filter(filters), many=True)
+    return Response(serializers.data)

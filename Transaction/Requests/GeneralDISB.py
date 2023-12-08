@@ -1,15 +1,14 @@
-from Transaction.Requests.Config import *
+from Transaction.Requests.ConfigDISB import *
 from BaseApi.MTN_MOMO_CONFIG import *
 
-def userBasicInfoRequest(accountHolderMSISDN):
+def userBasicInfoRequestRequest(accountHolderMSISDN):
     BASE_URL = CONFIG_MOMO_API.BASE_URL.value
     VERSION = CONFIG_MOMO_API.VERSION.value
-    SERVICE = CONFIG_MOMO_API.SERVICE_COLLECTION.value
+    SERVICE = CONFIG_MOMO_API.SERVICE_DISBURSEMENT.value
 
     try:
         api_url = f"{BASE_URL}{SERVICE}/{VERSION}/accountholder/msisdn/{accountHolderMSISDN}/basicuserinfo"
         response = requests.get(api_url, headers=getHeader(), params={})
-        
         if response and response.status_code == 200:
             return response
         else:
@@ -21,9 +20,9 @@ def userBasicInfoRequest(accountHolderMSISDN):
 def checkTransactionStatus(transaction_id):
     BASE_URL = CONFIG_MOMO_API.BASE_URL.value
     VERSION = CONFIG_MOMO_API.VERSION.value
-    SERVICE = CONFIG_MOMO_API.SERVICE_COLLECTION.value
+    SERVICE = CONFIG_MOMO_API.SERVICE_DISBURSEMENT.value
 
-    api_url = f"{BASE_URL}{SERVICE}/{VERSION}/requesttopay/{transaction_id}"
+    api_url = f"{BASE_URL}{SERVICE}/{VERSION}/transfer/{transaction_id}"
     headers = getMomoApiHeaders()
 
     try:

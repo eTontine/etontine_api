@@ -3,6 +3,7 @@ from Tontine.Views.Carte import *
 from Tontine.Views.Groupe import *
 from Tontine.Views.AssociateCarte import *
 from Tontine.Views.GroupeAssociate import *
+from Tontine.Views.Historique import *
 
 urlpatterns = [
     # Carte
@@ -25,10 +26,14 @@ urlpatterns = [
     path('update-groupe/<int:groupe_id>', updateGroupe, name='update_groupe'),
     path('delete-groupe/<int:groupe_id>', deleteGroupe, name='delete_groupe'),
     path('set-groupe-status/<int:groupe_id>', setGroupeStatus, name='set_groupe_status'),
+    path('get-groupe-associate-to-user/<int:user_id>', getGroupeAssociateToUser, name='get_groupe_associate_to_user'),
 
     # Groupe Associate
     path('add-user-in-groupe', addUserInGroupe, name='add_user_in_groupe'),
     path('validate-reject-invitation/<int:groupe_associate_id>', validateOrRejectGroupeInvitation, name='validate_reject_invitation'),
     path('get-groupe-associate/<int:groupe_associate_id>', getGroupeAssociate, name='get_groupe_associate'),
     path('get-associate-groupes', getAssociateGroupes, name='get_associate_groupes'),
+
+    # Historique
+    path('get-user-cartes-groupes', getUserCartesGroupes, name='get_user_cartes_groupes'),
 ]

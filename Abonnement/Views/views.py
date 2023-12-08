@@ -91,10 +91,8 @@ def choiceAbonnement(request):
         sale_price=abonnement.sale_price,
         data={
             'name': abonnement.name,
-            'interval_user_min': abonnement.interval_user_min,
-            'interval_user_max': abonnement.interval_user_max,
-            'interval_groupe_min': abonnement.interval_groupe_min,
-            'interval_groupe_max': abonnement.interval_groupe_max,
+            'can_create_groupe': abonnement.can_create_groupe,
+            'can_create_carte': abonnement.can_create_carte,
         },
         is_default=True,
         transaction_state=AbonnementTransactionStatusEnum.NO_PAYE.value,

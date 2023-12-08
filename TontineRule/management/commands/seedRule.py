@@ -8,7 +8,7 @@ class Seeder:
     def seedRule(cls):
         with transaction.atomic():
             for rule_data in rules_data:
-                Rules.objects.create(**rule_data)
+                Rules.objects.update_or_create(**rule_data)
 
 class Command(BaseCommand):
     help = 'Seed the database with initial data'

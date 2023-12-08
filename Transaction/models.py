@@ -22,7 +22,6 @@ class Transaction(models.Model):
     referenceId = models.CharField(max_length=255, unique=True, null=True)
     is_transfert_to_tontinier = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
-    is_send = models.BooleanField(default=False)
-    receiver_data = models.JSONField()
+    receiver_data = models.JSONField(null=True)
+    type_transaction = models.CharField(max_length=255, choices=[(tag.value, tag.name) for tag in TypeTransactionEnum], default=TypeTransactionEnum.CONTRIBUTION.value)
     updated_at = models.DateTimeField(auto_now=True)
-

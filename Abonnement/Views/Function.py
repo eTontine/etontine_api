@@ -11,11 +11,19 @@ def setUserStatus(user_id):
         user.save()
     return True
 
-def abonnementIsActiveAndValidate(user_id):
-    return True if TontinierAbonnement.objects.filter(
-            tontinier=user_id, 
-            is_default=True, 
-            status_abonnement=StatusAbonnementEnum.IN_PROGRESS.value, 
-            transaction_state=AbonnementTransactionStatusEnum.PAYE.value, 
-            expired_date__gte=datetime.now()
-        ).exists() else False
+def abonnementIsActiveAndValidate(user_id, type):
+    abonnementTontinier = TontinierAbonnement.objects.filter(
+        tontinier=user_id,
+        is_default=True,
+        status_abonnement=StatusAbonnementEnum.IN_PROGRESS.value,
+        transaction_state=AbonnementTransactionStatusEnum.PAYE.value,
+        expired_date__gte=datetime.now()
+    ).first()
+
+    if abonnementTontinier:
+        if type == 'CARTE':
+            return abonnementTontinier.abonnement.can_create_carte
+        else:
+            return abonnementTontinier.abonnement.can_create_groupe
+
+    return False

@@ -8,7 +8,7 @@ from django.shortcuts import get_object_or_404
 from BaseApi.AppEnum import *
 from Abonnement.Views.Function import * 
 from Tontine.models import Groupes, Groupe_associate, PaymentPeriod
-from Tontine.serializers import GroupesSerializer, GroupesSerializerAdd
+from Tontine.serializers import GroupesSerializer, GroupesSerializerAdd, Groupe_associateSerializer
 from TontineRule.Views.views import addGroupeRuleValues, getGroupeRuleValues
 from datetime import datetime, timedelta
 from django.db.models import Q
@@ -22,7 +22,7 @@ from django.utils import timezone
 def createGroupe(request):
     if request.user.account_type == AccountTypeEnum.SIMPLE.value:
         return Response({'message': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
-    if not abonnementIsActiveAndValidate(request.user.id):
+    if not abonnementIsActiveAndValidate(request.user.id, 'GROUPE'):
         return Response({'message': 'Abonnement not active or not validate'}, status=status.HTTP_403_FORBIDDEN)
     rule_answers = request.data.get('rule_answers')
     if rule_answers is None:
@@ -72,7 +72,7 @@ def getGroupes(request, tontinier_id):
     if search:
         filters &= (
             Q(name__icontains=search) |
-            Q(description__icontains=search) |
+            Q(descriptions__icontains=search) |
             Q(amount__icontains=search) |
             Q(gain__icontains=search) | 
             Q(status__icontains=search)
@@ -105,12 +105,16 @@ def getGroupes(request, tontinier_id):
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])
 def getGroupe(request, groupe_id):
-    if request.user.account_type == AccountTypeEnum.SIMPLE.value:
-        return Response({'message': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+    with_member = request.query_params.get('with_member', False)
 
     Groupe = get_object_or_404(Groupes, id=groupe_id)
     serializer = GroupesSerializer(Groupe)
     groupeRule = getGroupeRuleValues(Groupe.id, TontineTypeEnum.GROUPE.value)
+
+    if with_member:
+        groupeMember = Groupe_associate.objects.filter(groupe=Groupe)
+        serializerMember = Groupe_associateSerializer(groupeMember, many=True)
+        return Response({'groupe': serializer.data, 'rules': groupeRule, 'members': serializerMember.data}, status=status.HTTP_200_OK)
     return Response({'groupe': serializer.data, 'rules': groupeRule}, status=status.HTTP_200_OK)
 
 @api_view(['PUT'])
@@ -161,12 +165,12 @@ def setGroupeStatus(request, groupe_id):
     if request.user.id != groupeData.tontinier.id:
         return Response({'message': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
 
-    if groupeData.status == StatusGroupeEnum.IN_PROGESS.value:
+    if groupeData.status == StatusGroupeEnum.IN_PROGRESS.value:
         return Response({'message': "Vous ne pouvez plus changer le status de groupe en cours"}, status=status.HTTP_403_FORBIDDEN)
     
     if new_status is None:
         return Response({'message': 'status is required'}, status=status.HTTP_400_BAD_REQUEST)
-    if new_status == StatusGroupeEnum.IN_PROGESS.value:
+    if new_status == StatusGroupeEnum.IN_PROGRESS.value:
         groupeData.start_date = datetime.now()
         groupeData.save()
         addPaymentPeriodDays(groupe=groupeData.id)
@@ -206,9 +210,10 @@ def addPaymentPeriodDays(groupe):
 
         PaymentPeriod.objects.filter(groupe_associate__groupe=group).delete()
 
-        i = 1
+        j = 1
         for associate in groupe_associate:
-            addDateCollect(associate.id, payment_dates, i)
+            addDateCollect(associate.id, payment_dates, j)
+            j += 1
             for payment_date in payment_dates:
                 PaymentPeriod.objects.create(groupe_associate=associate, payment_date=payment_date)
 
@@ -216,8 +221,9 @@ def addPaymentPeriodDays(groupe):
 
 def addDateCollect(associateId, payment_dates, period):
     associate = Groupe_associate.objects.get(id=associateId)
-    associate.payment_period = period
+    associate.position = period
     associate.date_collect = payment_dates[period-1]
+    associate.save()
 
 def formatWeekDay(day):
     data = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
